@@ -12,7 +12,7 @@ struct App {
 #[derive(Clone, Copy, Debug)]
 enum CustomEvent {
     Timer,
-    Message,
+    Message(&'static str),
 }
 
 impl ApplicationHandler<CustomEvent> for App {
@@ -25,8 +25,8 @@ impl ApplicationHandler<CustomEvent> for App {
             CustomEvent::Timer => {
                 self.window.as_ref().unwrap().request_redraw();
             }
-            CustomEvent::Message => {
-                println!("Message received")
+            CustomEvent::Message(message) => {
+                println!("Message received: {message}")
             }
         }
     }
