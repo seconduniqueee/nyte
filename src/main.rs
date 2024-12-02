@@ -15,13 +15,7 @@ fn main() {
     let event_loop: EventLoop<CustomEvent> = EventLoop::<CustomEvent>::with_user_event()
         .build()
         .unwrap();
-    let proxy = event_loop.create_proxy();
     let mut app = App { window: None };
-
-    spawn(move || loop {
-        sleep(Duration::from_millis(1000));
-        proxy.send_event(CustomEvent::Message("Message from thread...")).unwrap()
-    });
 
     event_loop.set_control_flow(ControlFlow::Poll);
     event_loop.run_app(&mut app).unwrap();
