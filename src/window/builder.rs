@@ -2,12 +2,12 @@ use winit::dpi::LogicalSize;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::window::{Window as WinitWindow};
 
-pub struct Window<T> {
+pub struct Window {
     window: WinitWindow,
 }
 
-impl<T> Window<T> {
-    pub fn new(event_loop: &EventLoop<T>, title: &str, width: i32, height: i32, maximized: bool) -> Self {
+impl Window {
+    pub fn new(event_loop: &ActiveEventLoop, title: &str, width: i32, height: i32, maximized: bool) -> Self {
         let attrs = WinitWindow::default_attributes()
             .with_title(title)
             .with_maximized(maximized)
