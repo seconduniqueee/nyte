@@ -1,67 +1,33 @@
-mod window;
-mod application;
-
-use std::thread::{sleep, spawn};
-use std::time::Duration;
-use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::platform::windows::{WindowExtWindows};
-use winit::window::WindowId;
-use crate::window::builder::Window;
-
+use nyte::application::{run_app, Application};
+use nyte::window::Window;
 
 fn main() {
-    let event_loop: EventLoop<CustomEvent> = EventLoop::<CustomEvent>::with_user_event()
-        .build()
-        .unwrap();
-    let mut app = App { window: None };
-
-    event_loop.set_control_flow(ControlFlow::Poll);
-    event_loop.run_app(&mut app).unwrap();
+    let mut app = App::default();
+    run_app(&mut app);
 }
 
-#[derive(Debug)]
-enum CustomEvent {
-    Message(&'static str),
-}
-
+#[derive(Default)]
 struct App {
-    window: Option<Window>
+    state: AppState,
 }
 
-impl ApplicationHandler<CustomEvent> for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = Window::new(event_loop, "title", 500, 500, true);
-        self.window = Some(window);
-    }
-
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: CustomEvent) {
-        match event {
-            CustomEvent::Message(msg) => {
-                println!("Message Received: {}", msg);
-            }
-        }
-    }
-
-    fn window_event(
-        &mut self,
-        event_loop: &ActiveEventLoop,
-        window_id: WindowId,
-        event: WindowEvent
-    ) {
-        match event {
-            WindowEvent::CloseRequested => {
-                println!("Exiting...");
-                event_loop.exit();
-            }
-            _ => ()
-        }
-    }
+#[derive(Default)]
+struct AppState {
+    score: i32
 }
 
-impl App {
-    fn window(&mut self) -> Window {
-        self.window.take().unwrap()
+impl Application for App {
+    fn init(&mut self, window: &mut Window) {
+        println!("App init call");
+        window.set_maximized(true);
+    }
+
+    fn update(&mut self) {}
+
+    fn render(&mut self) {}
+
+    fn handle_event(&mut self, event: WindowEvent) -> () {
+        println!("App handle event call {:?}", event);
     }
 }
