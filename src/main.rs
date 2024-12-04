@@ -1,8 +1,11 @@
+use env_logger;
 use winit::event::WindowEvent;
+use winit::window::Window;
 use nyte::application::{run_app, Application};
-use nyte::window::Window;
 
 fn main() {
+    env_logger::init();
+
     let mut app = App::default();
     run_app(&mut app);
 }

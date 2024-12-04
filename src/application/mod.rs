@@ -1,8 +1,12 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Arc;
+use pollster::block_on;
 use winit::application::ApplicationHandler;
 use winit::event::{StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::WindowId;
-use crate::window::Window;
+use winit::window::{Window, WindowAttributes, WindowId};
+use crate::renderer::State;
 
 pub trait Application {
     fn init(&mut self, window: &mut Window) -> ();
@@ -12,8 +16,9 @@ pub trait Application {
 }
 
 struct Runner<'a> {
-    window: Option<Window>,
+    window: Option<Arc<Window>>,
     app: &'a mut dyn Application,
+    state: Option<State<'a>>
 }
 
 impl<'a> ApplicationHandler for Runner<'a> {
@@ -30,9 +35,14 @@ impl<'a> ApplicationHandler for Runner<'a> {
         }
     }
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.window = Some(Window::new(event_loop));
-        self.app.init(self.window.as_mut().unwrap());
+    fn resumed(&mut self, event_loop: &ActiveEventLoop)  {
+        let attrs = WindowAttributes::default();
+        let window = event_loop.create_window(attrs).unwrap();
+        let window = Arc::new(window);
+        let state = block_on(State::new(window.clone()));
+
+        self.window = Some(window.clone());
+        self.state = Some(state);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
@@ -46,7 +56,7 @@ impl<'a> ApplicationHandler for Runner<'a> {
 
 pub fn run_app(app: &mut impl Application) {
     let mut event_loop = EventLoop::new().unwrap();
-    let mut runner = Runner { window: None, app };
+    let mut runner = Runner { window: None, state: None, app };
 
     event_loop.set_control_flow(ControlFlow::Poll);
     event_loop.run_app(&mut runner).unwrap();
