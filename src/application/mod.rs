@@ -51,6 +51,10 @@ impl<'a> ApplicationHandler for Runner<'a> {
         if let WindowEvent::CloseRequested = event {
             event_loop.exit();
         }
+
+        if let WindowEvent::Resized(size) = event {
+            self.state.as_mut().unwrap().resize(size);
+        }
     }
 }
 
