@@ -31,6 +31,6 @@ impl Application for App {
     fn render(&mut self) {}
 
     fn handle_event(&mut self, event: WindowEvent) -> () {
-        println!("App handle event call {:?}", event);
+        // println!("App handle event call {:?}", event);
     }
 }

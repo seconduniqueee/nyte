@@ -46,14 +46,36 @@ impl<'a> ApplicationHandler for Runner<'a> {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
-        self.app.handle_event(event.clone());
+        let state = self.state.as_mut().unwrap();
+        let id = self.window.as_mut().unwrap().id();
 
-        if let WindowEvent::CloseRequested = event {
-            event_loop.exit();
+        if (id != window_id || state.input(&event)) {
+            println!("Event does not match or previous event is not processed. Returning...");
+            return;
         }
 
-        if let WindowEvent::Resized(size) = event {
-            self.state.as_mut().unwrap().resize(size);
+        match event {
+            WindowEvent::CloseRequested => { event_loop.exit(); }
+            WindowEvent::Resized(size) => { state.resize(size); }
+            WindowEvent::RedrawRequested => {
+                state.window().request_redraw();
+                state.update();
+
+                match state.render() {
+                    Ok(_) => {}
+                    Err(
+                        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
+                    ) => state.resize(state.size),
+                    Err(wgpu::SurfaceError::OutOfMemory) => {
+                        log::error!("OutOfMemory");
+                        event_loop.exit();
+                    }
+                    Err(wgpu::SurfaceError::Timeout) => {
+                        log::warn!("Surface timeout")
+                    }
+                }
+            }
+            _ => ()
         }
     }
 }

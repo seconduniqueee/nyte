@@ -6,12 +6,12 @@ use winit::window::Window;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration};
 
 pub struct State<'a> {
-    surface: Surface<'a>,
-    device: Device,
-    queue: Queue,
-    config: SurfaceConfiguration,
-    size: winit::dpi::PhysicalSize<u32>,
-    window: Arc<Window>,
+    pub surface: Surface<'a>,
+    pub device: Device,
+    pub queue: Queue,
+    pub config: SurfaceConfiguration,
+    pub size: winit::dpi::PhysicalSize<u32>,
+    pub window: Arc<Window>,
 }
 
 impl<'a> State<'a> {
@@ -73,14 +73,46 @@ impl<'a> State<'a> {
     }
 
     pub fn input(&mut self, event: &WindowEvent) -> bool {
-        todo!()
+        false
     }
 
     pub fn update(&mut self) {
-        todo!()
+
     }
 
     pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
-        todo!()
+        let output = self.surface.get_current_texture()?;
+        let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("Render Encoder"),
+        });
+
+        {
+            let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("Render Pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(wgpu::Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: wgpu::StoreOp::Store,
+                    },
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+        }
+
+        // submit will accept anything that implements IntoIter
+        self.queue.submit(std::iter::once(encoder.finish()));
+        output.present();
+
+        Ok(())
     }
 }
