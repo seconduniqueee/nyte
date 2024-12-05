@@ -108,7 +108,7 @@ impl<'a> State<'a> {
                         r: (color.0 as f64) / 255.0,
                         g: (color.1 as f64) / 255.0,
                         b: (color.2 as f64) / 255.0,
-                        a: 1.0,
+                        a: 0.5,
                     }),
                     store: wgpu::StoreOp::Store,
                 },
