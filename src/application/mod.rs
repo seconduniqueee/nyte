@@ -11,7 +11,7 @@ use crate::renderer::State;
 pub trait Application {
     fn init(&mut self, window: &mut Window) -> ();
     fn update(&mut self) -> ();
-    fn render(&mut self) -> ();
+    fn render(&mut self, state: &mut State) -> ();
     fn handle_event(&mut self, event: WindowEvent) -> () {}
 }
 
@@ -28,8 +28,10 @@ impl<'a> ApplicationHandler for Runner<'a> {
                 // init
             }
             StartCause::Poll => {
+                let state = self.state.as_mut().unwrap();
+
                 self.app.update();
-                self.app.render();
+                self.app.render(state);
             }
             _ => ()
         }
@@ -49,31 +51,20 @@ impl<'a> ApplicationHandler for Runner<'a> {
         let state = self.state.as_mut().unwrap();
         let id = self.window.as_mut().unwrap().id();
 
-        if (id != window_id || state.input(&event)) {
-            println!("Event does not match or previous event is not processed. Returning...");
+        if id != window_id || state.input(&event) {
+            println!("Window does not match or previous event is not processed. Returning...");
             return;
         }
+
+        state.window().request_redraw();
+        self.app.handle_event(event.clone());
 
         match event {
             WindowEvent::CloseRequested => { event_loop.exit(); }
             WindowEvent::Resized(size) => { state.resize(size); }
             WindowEvent::RedrawRequested => {
-                state.window().request_redraw();
                 state.update();
-
-                match state.render() {
-                    Ok(_) => {}
-                    Err(
-                        wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated,
-                    ) => state.resize(state.size),
-                    Err(wgpu::SurfaceError::OutOfMemory) => {
-                        log::error!("OutOfMemory");
-                        event_loop.exit();
-                    }
-                    Err(wgpu::SurfaceError::Timeout) => {
-                        log::warn!("Surface timeout")
-                    }
-                }
+                self.app.render(state);
             }
             _ => ()
         }

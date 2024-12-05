@@ -80,7 +80,7 @@ impl<'a> State<'a> {
 
     }
 
-    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, color: (i16, i16, i16)) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -94,9 +94,9 @@ impl<'a> State<'a> {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
+                        r: (color.0 as f64) / 255.0,
+                        g: (color.1 as f64) / 255.0,
+                        b: (color.2 as f64) / 255.0,
                         a: 1.0,
                     }),
                     store: wgpu::StoreOp::Store,
