@@ -3,8 +3,9 @@ use std::rc::Rc;
 use std::sync::Arc;
 use pollster::block_on;
 use winit::application::ApplicationHandler;
-use winit::event::{StartCause, WindowEvent};
+use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
 use crate::renderer::State;
 
@@ -56,12 +57,14 @@ impl<'a> ApplicationHandler for Runner<'a> {
             return;
         }
 
-        state.window().request_redraw();
-        self.app.handle_event(event.clone());
-
         match event {
             WindowEvent::CloseRequested => { event_loop.exit(); }
             WindowEvent::Resized(size) => { state.resize(size); }
+            WindowEvent::KeyboardInput { event: evt, .. } => {
+                if evt.physical_key == PhysicalKey::Code(KeyCode::Space) && evt.state == ElementState::Released {
+                    state.toggle_pipeline();
+                }
+            }
             WindowEvent::RedrawRequested => {
                 state.update();
                 self.app.render(state);

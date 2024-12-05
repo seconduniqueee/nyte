@@ -1,9 +1,7 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::window::Window;
-use wgpu::{Surface, Device, Queue, SurfaceConfiguration};
+use wgpu::{Surface, Device, Queue, SurfaceConfiguration, include_wgsl, RenderPipeline};
 
 pub struct State<'a> {
     pub surface: Surface<'a>,
@@ -12,6 +10,8 @@ pub struct State<'a> {
     pub config: SurfaceConfiguration,
     pub size: winit::dpi::PhysicalSize<u32>,
     pub window: Arc<Window>,
+    pub render_pipelines: Vec<RenderPipeline>,
+    pub curr_pipeline: u32,
 }
 
 impl<'a> State<'a> {
@@ -56,11 +56,22 @@ impl<'a> State<'a> {
             desired_maximum_frame_latency: 2,
         };
 
-        State { size: window_size, surface, device, queue, window, config }
+        let basic_pipeline = Self::get_default_pipeline(&device, &config, "vs_main", "fs_main");
+        let coloring_pipeline = Self::get_default_pipeline(&device, &config, "vs_main_two", "fs_main_two");
+        let render_pipelines = vec![basic_pipeline, coloring_pipeline];
+
+        State { size: window_size, curr_pipeline: 0, render_pipelines, surface, device, queue, window, config }
     }
 
     pub fn window(&self) -> &Window {
         &self.window
+    }
+
+    pub fn toggle_pipeline(&mut self) {
+        let max = self.render_pipelines.len() as u32;
+        let pipeline_index = (self.curr_pipeline + 1) % max;
+
+        self.curr_pipeline = pipeline_index;
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -80,14 +91,14 @@ impl<'a> State<'a> {
 
     }
 
-    pub fn render(&mut self, color: (i16, i16, i16)) -> Result<(), wgpu::SurfaceError> {
+    pub fn render(&mut self, color: (u8, u8, u8)) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
 
-        encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
@@ -107,9 +118,68 @@ impl<'a> State<'a> {
             timestamp_writes: None,
         });
 
+        let pipeline = &self.render_pipelines[self.curr_pipeline as usize];
+
+        render_pass.set_pipeline(pipeline);
+        render_pass.draw(0..3, 0..1);
+
+        drop(render_pass);
+
         self.queue.submit(std::iter::once(encoder.finish()));
         output.present();
 
         Ok(())
+    }
+
+    fn get_default_pipeline(
+        device: &Device,
+        config: &SurfaceConfiguration,
+        vertex_entry_point: &str,
+        fragment_entry_point: &str
+    ) -> wgpu::RenderPipeline {
+        let shader = device.create_shader_module(include_wgsl!("shaders/shader.wgsl"));
+        let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("Render Pipeline Layout"),
+            bind_group_layouts: &[],
+            push_constant_ranges: &[],
+        });
+
+        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some("Coloring Pipeline"),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &shader,
+                entry_point: Some(vertex_entry_point),
+                buffers: &[],
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &shader,
+                entry_point: Some(fragment_entry_point),
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: config.format,
+                    blend: Some(wgpu::BlendState::REPLACE),
+                    write_mask: wgpu::ColorWrites::ALL,
+                })],
+                compilation_options: wgpu::PipelineCompilationOptions::default()
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw, // 2.
+                cull_mode: Some(wgpu::Face::Back),
+                polygon_mode: wgpu::PolygonMode::Fill,
+                unclipped_depth: false,
+                conservative: false,
+            },
+            depth_stencil: None,
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+            cache: None,
+        })
     }
 }
