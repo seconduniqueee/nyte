@@ -61,7 +61,7 @@ impl<'a> ApplicationHandler for Runner<'a> {
             WindowEvent::CloseRequested => { event_loop.exit(); }
             WindowEvent::Resized(size) => { state.resize(size); }
             WindowEvent::KeyboardInput { event: evt, .. } => {
-                if evt.physical_key == PhysicalKey::Code(KeyCode::Space) && evt.state == ElementState::Released {
+                if evt.physical_key == PhysicalKey::Code(KeyCode::Space) && evt.state == ElementState::Pressed {
                     state.toggle_pipeline();
                 }
             }

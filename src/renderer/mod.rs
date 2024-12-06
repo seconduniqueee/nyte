@@ -2,6 +2,7 @@ use std::sync::Arc;
 use winit::event::WindowEvent;
 use winit::window::Window;
 use wgpu::{Surface, Device, Queue, SurfaceConfiguration, include_wgsl, RenderPipeline};
+use wgpu::util::DeviceExt;
 
 pub struct State<'a> {
     pub surface: Surface<'a>,
@@ -11,11 +12,48 @@ pub struct State<'a> {
     pub size: winit::dpi::PhysicalSize<u32>,
     pub window: Arc<Window>,
     pub render_pipelines: Vec<RenderPipeline>,
-    pub curr_pipeline: u32,
+    pub number_of_vertices: u32,
+    pub curr_pipeline_index: u32,
+    pub vertex_buffer: wgpu::Buffer,
 }
+
+#[repr(C)]
+#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+struct Vertex {
+    position: [f32; 3],
+    color: [f32; 3],
+}
+
+impl Vertex {
+    fn desc() -> wgpu::VertexBufferLayout<'static> {
+        wgpu::VertexBufferLayout {
+            array_stride: size_of::<Vertex>() as wgpu::BufferAddress,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &[
+                wgpu::VertexAttribute {
+                    offset: 0,
+                    shader_location: 0,
+                    format: wgpu::VertexFormat::Float32x3,
+                },
+                wgpu::VertexAttribute {
+                    offset: size_of::<[f32; 3]>() as wgpu::BufferAddress,
+                    shader_location: 1,
+                    format: wgpu::VertexFormat::Float32x3,
+                }
+            ]
+        }
+    }
+}
+
+const VERTICES: &[Vertex] = &[
+    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
+    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
+    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+];
 
 impl<'a> State<'a> {
     pub async fn new(window: Arc<Window>) -> State<'a> {
+        let number_of_vertices = VERTICES.len() as u32;
         let window_size = window.inner_size();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -59,8 +97,26 @@ impl<'a> State<'a> {
         let basic_pipeline = Self::get_default_pipeline(&device, &config, "vs_main", "fs_main");
         let coloring_pipeline = Self::get_default_pipeline(&device, &config, "vs_main_two", "fs_main_two");
         let render_pipelines = vec![basic_pipeline, coloring_pipeline];
+        let vertex_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Vertex Buffer"),
+                contents: bytemuck::cast_slice(VERTICES),
+                usage: wgpu::BufferUsages::VERTEX,
+            }
+        );
 
-        State { size: window_size, curr_pipeline: 0, render_pipelines, surface, device, queue, window, config }
+        State {
+            size: window_size,
+            number_of_vertices,
+            curr_pipeline_index: 0,
+            render_pipelines,
+            vertex_buffer,
+            surface,
+            device,
+            queue,
+            window,
+            config
+        }
     }
 
     pub fn window(&self) -> &Window {
@@ -69,9 +125,9 @@ impl<'a> State<'a> {
 
     pub fn toggle_pipeline(&mut self) {
         let max = self.render_pipelines.len() as u32;
-        let pipeline_index = (self.curr_pipeline + 1) % max;
+        let pipeline_index = (self.curr_pipeline_index + 1) % max;
 
-        self.curr_pipeline = pipeline_index;
+        self.curr_pipeline_index = pipeline_index;
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
@@ -118,10 +174,11 @@ impl<'a> State<'a> {
             timestamp_writes: None,
         });
 
-        let pipeline = &self.render_pipelines[self.curr_pipeline as usize];
+        let pipeline = &self.render_pipelines[self.curr_pipeline_index as usize];
 
         render_pass.set_pipeline(pipeline);
-        render_pass.draw(0..3, 0..1);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.draw(0..self.number_of_vertices, 0..1);
 
         drop(render_pass);
 
@@ -136,7 +193,7 @@ impl<'a> State<'a> {
         config: &SurfaceConfiguration,
         vertex_entry_point: &str,
         fragment_entry_point: &str
-    ) -> wgpu::RenderPipeline {
+    ) -> RenderPipeline {
         let shader = device.create_shader_module(include_wgsl!("shaders/shader.wgsl"));
         let render_pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Render Pipeline Layout"),
@@ -150,7 +207,7 @@ impl<'a> State<'a> {
             vertex: wgpu::VertexState {
                 module: &shader,
                 entry_point: Some(vertex_entry_point),
-                buffers: &[],
+                buffers: &[Vertex::desc()],
                 compilation_options: wgpu::PipelineCompilationOptions::default(),
             },
             fragment: Some(wgpu::FragmentState {
