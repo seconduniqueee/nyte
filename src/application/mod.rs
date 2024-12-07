@@ -62,7 +62,7 @@ impl<'a> ApplicationHandler for Runner<'a> {
             WindowEvent::Resized(size) => { state.resize(size); }
             WindowEvent::KeyboardInput { event: evt, .. } => {
                 if evt.physical_key == PhysicalKey::Code(KeyCode::Space) && evt.state == ElementState::Pressed {
-                    state.toggle_pipeline();
+                    state.set_next_index_offset();
                 }
             }
             WindowEvent::RedrawRequested => {

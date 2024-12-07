@@ -9,12 +9,14 @@ pub struct State<'a> {
     pub device: Device,
     pub queue: Queue,
     pub config: SurfaceConfiguration,
-    pub size: winit::dpi::PhysicalSize<u32>,
+    pub window_size: winit::dpi::PhysicalSize<u32>,
     pub window: Arc<Window>,
     pub render_pipelines: Vec<RenderPipeline>,
     pub number_of_vertices: u32,
-    pub curr_pipeline_index: u32,
+    pub number_of_indices: u32,
+    pub index_offset: u32,
     pub vertex_buffer: wgpu::Buffer,
+    pub index_buffer: wgpu::Buffer,
 }
 
 #[repr(C)]
@@ -46,14 +48,25 @@ impl Vertex {
 }
 
 const VERTICES: &[Vertex] = &[
-    Vertex { position: [0.0, 0.5, 0.0], color: [1.0, 0.0, 0.0] },
-    Vertex { position: [-0.5, -0.5, 0.0], color: [0.0, 1.0, 0.0] },
-    Vertex { position: [0.5, -0.5, 0.0], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [-0.75, 0.25, 0.0], color: [0.5, 1.0, 0.5] },
+    Vertex { position: [-0.5, -0.25, 0.0], color: [1.0, 0.0, 0.5] },
+    Vertex { position: [0.5, -0.25, 0.0], color: [0.0, 1.0, 0.5] },
+    Vertex { position: [0.75, 0.25, 0.0], color: [0.0, 0.0, 1.0] },
+    Vertex { position: [0.0, 0.75, 0.0], color: [1.0, 0.0, 0.0] },
+];
+
+const INDICES: &[u16] = &[
+    0, 1, 4,
+    1, 2, 4,
+    2, 3, 4,
 ];
 
 impl<'a> State<'a> {
     pub async fn new(window: Arc<Window>) -> State<'a> {
         let number_of_vertices = VERTICES.len() as u32;
+        let number_of_indices = INDICES.len() as u32;
+        let curr_pipeline_index = 0;
+
         let window_size = window.inner_size();
         let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
             backends: wgpu::Backends::PRIMARY,
@@ -95,8 +108,8 @@ impl<'a> State<'a> {
         };
 
         let basic_pipeline = Self::get_default_pipeline(&device, &config, "vs_main", "fs_main");
-        let coloring_pipeline = Self::get_default_pipeline(&device, &config, "vs_main_two", "fs_main_two");
-        let render_pipelines = vec![basic_pipeline, coloring_pipeline];
+        let render_pipelines = vec![basic_pipeline];
+
         let vertex_buffer = device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("Vertex Buffer"),
@@ -105,12 +118,22 @@ impl<'a> State<'a> {
             }
         );
 
+        let index_buffer = device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("Index Buffer"),
+                contents: bytemuck::cast_slice(INDICES),
+                usage: wgpu::BufferUsages::INDEX,
+            }
+        );
+
         State {
-            size: window_size,
-            number_of_vertices,
-            curr_pipeline_index: 0,
+            window_size,
+            index_offset: curr_pipeline_index,
             render_pipelines,
             vertex_buffer,
+            number_of_vertices,
+            index_buffer,
+            number_of_indices,
             surface,
             device,
             queue,
@@ -123,16 +146,16 @@ impl<'a> State<'a> {
         &self.window
     }
 
-    pub fn toggle_pipeline(&mut self) {
-        let max = self.render_pipelines.len() as u32;
-        let pipeline_index = (self.curr_pipeline_index + 1) % max;
+    pub fn set_next_index_offset(&mut self) {
+        let max_offset = INDICES.len() as u32 / 3;
+        let next_offset = (self.index_offset + 1) % max_offset;
 
-        self.curr_pipeline_index = pipeline_index;
+        self.index_offset = next_offset;
     }
 
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
+            self.window_size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
@@ -150,6 +173,7 @@ impl<'a> State<'a> {
     pub fn render(&mut self, color: (u8, u8, u8)) -> Result<(), wgpu::SurfaceError> {
         let output = self.surface.get_current_texture()?;
         let view = output.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let offset = self.index_offset;
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("Render Encoder"),
         });
@@ -174,11 +198,11 @@ impl<'a> State<'a> {
             timestamp_writes: None,
         });
 
-        let pipeline = &self.render_pipelines[self.curr_pipeline_index as usize];
+        render_pass.set_pipeline(&self.render_pipelines[0]);
 
-        render_pass.set_pipeline(pipeline);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.draw(0..self.number_of_vertices, 0..1);
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(offset * 3..(offset + 1) * 3, 0, 0..1);
 
         drop(render_pass);
 
@@ -221,9 +245,9 @@ impl<'a> State<'a> {
                 compilation_options: wgpu::PipelineCompilationOptions::default()
             }),
             primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList, // 1.
+                topology: wgpu::PrimitiveTopology::TriangleList,
                 strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw, // 2.
+                front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
                 polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
