@@ -34,6 +34,8 @@ impl Application for App {
     }
 
     fn handle_event(&mut self, event: WindowEvent) -> () {
-
+        if let WindowEvent::CloseRequested = event {
+            println!("Exiting with current score {}...", self.state.score);
+        }
     }
 }

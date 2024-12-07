@@ -1,9 +1,7 @@
-use std::cell::RefCell;
-use std::rc::Rc;
 use std::sync::Arc;
 use pollster::block_on;
 use winit::application::ApplicationHandler;
-use winit::event::{ElementState, KeyEvent, StartCause, WindowEvent};
+use winit::event::{ElementState, StartCause, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Window, WindowAttributes, WindowId};
@@ -13,7 +11,7 @@ pub trait Application {
     fn init(&mut self, window: &mut Window) -> ();
     fn update(&mut self) -> ();
     fn render(&mut self, state: &mut State) -> ();
-    fn handle_event(&mut self, event: WindowEvent) -> () {}
+    fn handle_event(&mut self, _: WindowEvent) -> () {}
 }
 
 struct Runner<'a> {
@@ -23,7 +21,7 @@ struct Runner<'a> {
 }
 
 impl<'a> ApplicationHandler for Runner<'a> {
-    fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+    fn new_events(&mut self, _: &ActiveEventLoop, cause: StartCause) {
         match cause {
             StartCause::Init => {
                 // init
@@ -57,6 +55,8 @@ impl<'a> ApplicationHandler for Runner<'a> {
             return;
         }
 
+        self.app.handle_event(event.clone());
+
         match event {
             WindowEvent::CloseRequested => { event_loop.exit(); }
             WindowEvent::Resized(size) => { state.resize(size); }
@@ -75,7 +75,7 @@ impl<'a> ApplicationHandler for Runner<'a> {
 }
 
 pub fn run_app(app: &mut impl Application) {
-    let mut event_loop = EventLoop::new().unwrap();
+    let event_loop = EventLoop::new().unwrap();
     let mut runner = Runner { window: None, state: None, app };
 
     event_loop.set_control_flow(ControlFlow::Poll);

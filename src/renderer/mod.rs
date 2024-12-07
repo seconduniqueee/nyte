@@ -162,7 +162,7 @@ impl<'a> State<'a> {
         }
     }
 
-    pub fn input(&mut self, event: &WindowEvent) -> bool {
+    pub fn input(&mut self, _: &WindowEvent) -> bool {
         false
     }
 
